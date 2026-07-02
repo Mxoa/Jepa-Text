@@ -140,7 +140,7 @@ class MLMModule(L.LightningModule):
         # Perplexité : métrique naturelle pour du MLM, exp(loss CE)
         # Plus lisible que la loss brute pour savoir "est-ce que ça apprend"
         self.log(f"{stage}/perplexity", torch.exp(loss),
-                 on_step=False,
+                 on_step=True,
                  on_epoch=True)
 
         return loss
