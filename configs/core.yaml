@@ -1,0 +1,9 @@
+tokenizer:
+  tokenizer_used: bert-base-uncased # should have a [MASK] token for jepa, or add it in the file tokenizer.py
+
+datastet:
+  path:
+
+chunking:
+  window_size: 50 # nb of token
+  stride: 1

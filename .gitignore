@@ -1,0 +1,40 @@
+.python-version
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# Data
+data/raw/
+data/processed/
+data/external/
+
+# Notebooks
+.ipynb_checkpoints/
+
+# ML
+*.pt
+*.pth
+*.onnx
+lightning_logs/
+mlruns/
+wandb/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Environnement
+.env
+.venv/
+venv/
+
+*.ckpt
