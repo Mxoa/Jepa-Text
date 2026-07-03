@@ -19,10 +19,6 @@ class TransformerBlock(nn.Module):
     def __init__(self, d_model: int, n_heads: int, d_ff: int, dropout: float = 0.1):
         super().__init__()
 
-        # --- Self-attention -------------------------------------------------
-        # On délègue à PyTorch : nn.MultiheadAttention gère Q/K/V projections,
-        # scaled dot-product, et output projection.
-        # batch_first=True : les tenseurs sont (B, L, D) et non (L, B, D)
         self.attn = nn.MultiheadAttention(
             embed_dim=d_model,
             num_heads=n_heads,
@@ -31,9 +27,6 @@ class TransformerBlock(nn.Module):
         )
         self.norm1 = nn.LayerNorm(d_model)
 
-        # --- MLP (Feed-Forward) ---------------------------------------------
-        # Deux linéaires avec GELU au milieu.
-        # d_ff est typiquement 4 * d_model (convention transformer original).
         self.ff = nn.Sequential(
             nn.Linear(d_model, d_ff),
             nn.GELU(),
@@ -55,19 +48,17 @@ class TransformerBlock(nn.Module):
         Returns:
             (B, L, D)
         """
-        # Pre-norm + self-attention + résiduel
-        # On passe la même séquence en query, key, value (self-attention)
+
         normed = self.norm1(x)
         attn_out, _ = self.attn(
             query=normed,
             key=normed,
             value=normed,
             key_padding_mask=key_padding_mask,
-            need_weights=False,   # on n'a pas besoin des poids d'attention pour l'instant
+            need_weights=False,
         )
         x = x + self.dropout(attn_out)
 
-        # Pre-norm + MLP + résiduel
         x = x + self.ff(self.norm2(x))
 
         return x
@@ -95,23 +86,16 @@ class TransformerEncoder(nn.Module):
         super().__init__()
 
         self.pad_token_id = pad_token_id
-
-        # --- Embeddings -----------------------------------------------------
-        # token_embedding     : mappe chaque token id → vecteur D
-        # position_embedding  : mappe chaque position 0..L-1 → vecteur D
-        # Les deux sont APPRIS (pas sinusoïdal, pas RoPE — on garde simple)
         self.token_embedding    = nn.Embedding(vocab_size, d_model, padding_idx=pad_token_id)
         self.position_embedding = nn.Embedding(max_seq_len, d_model)
 
         self.embed_dropout = nn.Dropout(dropout)
 
-        # --- Blocs transformer ----------------------------------------------
         self.blocks = nn.ModuleList([
             TransformerBlock(d_model, n_heads, d_ff, dropout)
             for _ in range(n_layers)
         ])
 
-        # Norm finale (bonne pratique : stabilise les représentations en sortie)
         self.final_norm = nn.LayerNorm(d_model)
 
     def forward(self, input_ids: torch.Tensor, attention_mask: torch.Tensor | None = None):
@@ -154,7 +138,7 @@ if __name__ == '__main__':
     batch = torch.tensor([
         [1, 2, 3, 4, 0, 0, 0],
         [1, 1, 3, 6, 6, 0, 0]
-    ]) # batch de taille 2, on a deux séquence de taille 7
+    ])
 
     attn_mask = torch.tensor([
         [1, 1, 1, 1, 0, 0, 0],

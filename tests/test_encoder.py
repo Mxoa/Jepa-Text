@@ -3,7 +3,7 @@
 import pytest
 import torch
 
-from src.modules.jepa.encoder import TransformerBlock, TransformerEncoder
+from modules.core.encoder import TransformerBlock, TransformerEncoder
 
 
 # ── Fixtures ──────────────────────────────────────────────────────────────────

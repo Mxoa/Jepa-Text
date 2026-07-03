@@ -1,4 +1,4 @@
-# src/modules/jepa/models/mlm_module.py
+# src/modules/mlm_baseline/mlm_module.py
 
 import torch
 import torch.nn as nn
@@ -17,7 +17,6 @@ class MLMHead(nn.Module):
 
     def __init__(self, d_model: int, vocab_size: int):
         super().__init__()
-        # Projection linéaire + LayerNorm avant (convention BERT)
         self.norm = nn.LayerNorm(d_model)
         self.proj = nn.Linear(d_model, vocab_size)
 
@@ -64,10 +63,6 @@ class MLMModule(L.LightningModule):
         self.lr = lr
         self.weight_decay = weight_decay
 
-    # ------------------------------------------------------------------
-    # Logique commune train / val
-    # ------------------------------------------------------------------
-
     def _gather_masked_positions(
         self,
         hidden_states: torch.Tensor,   # (B, L, D)
@@ -85,69 +80,47 @@ class MLMModule(L.LightningModule):
         B, L, D = hidden_states.shape
         M = masked_positions.shape[1]
 
-        # Masque des positions réelles (pas le padding -1)
         valid = masked_positions != -1   # (B, M)
 
-        # Correction left-padding : masked_positions est dans l'espace
-        # de la séquence non-paddée, mais notre tenseur hidden_states
-        # est de longueur L avec du padding à gauche.
-        # pad_len[i] = nombre de tokens de padding à gauche pour l'exemple i
         pad_len = (attention_mask == 0).sum(dim=1, keepdim=True)  # (B, 1)
         
-        # Positions corrigées dans le tenseur paddé
-        # On clamp à 0 pour les -1 (ils seront ignorés via `valid`)
         corrected = (masked_positions + pad_len).clamp(min=0)     # (B, M)
 
-        # Expand pour gather sur la dim D
         idx = corrected.unsqueeze(-1).expand(-1, -1, D)           # (B, M, D)
         gathered_all = hidden_states.gather(dim=1, index=idx)     # (B, M, D)
 
-        # Ne garder que les positions valides → (N, D)
         gathered = gathered_all[valid]                             # (N, D)
 
         return gathered, valid
 
     def _step(self, batch: dict, stage: str) -> torch.Tensor:
-        # 1. Encodeur
         hidden_states = self.encoder(
             batch["input_ids"],
             batch["attention_mask"],
         )  # (B, L, D)
 
-        # 2. Gather aux positions masquées
         gathered, valid = self._gather_masked_positions(
             hidden_states,
             batch["masked_positions"],
             batch["attention_mask"],
         )  # gathered : (N, D)
 
-        # 3. Tête MLM → logits
         logits = self.head(gathered)              # (N, vocab_size)
 
-        # 4. Cibles : target_ids aux positions valides seulement
-        targets = batch["target_ids"][valid]      # (N,)
+        targets = batch["target_ids"][valid] #(N,)
 
-        # 5. Cross-entropy
         loss = F.cross_entropy(logits, targets)
 
-        # 6. Logging  —  on_step=True affiche à chaque step dans la barre
-        #                on_epoch=True moyenne sur l'epoch entière
         self.log(f"{stage}/loss", loss,
                  on_step=(stage == "train"),
                  on_epoch=True,
                  prog_bar=True)
-
-        # Perplexité : métrique naturelle pour du MLM, exp(loss CE)
-        # Plus lisible que la loss brute pour savoir "est-ce que ça apprend"
         self.log(f"{stage}/perplexity", torch.exp(loss),
                  on_step=True,
                  on_epoch=True)
 
         return loss
 
-    # ------------------------------------------------------------------
-    # Hooks Lightning
-    # ------------------------------------------------------------------
 
     def training_step(self, batch, batch_idx):
         return self._step(batch, "train")
@@ -156,8 +129,6 @@ class MLMModule(L.LightningModule):
         return self._step(batch, "val")
 
     def configure_optimizers(self):
-        # AdamW : Adam + weight decay découplé (standard pour les transformers)
-        # On exclut les biais et LayerNorm du weight decay (convention BERT)
         decay_params     = [p for n, p in self.named_parameters()
                             if p.requires_grad and not _no_decay(n)]
         no_decay_params  = [p for n, p in self.named_parameters()
